@@ -10,9 +10,9 @@ const ALL_PAIRS = [
 ];
 
 const STAGE_CONFIG = {
-  1: { pairCount: 3, label: '1단계', timeLimit: 10, cols: 2, rows: 3, previewTime: 2000 },
-  2: { pairCount: 6, label: '2단계', timeLimit: 15, cols: 3, rows: 4, previewTime: 5000 },
-  3: { pairCount: 8, label: '3단계', timeLimit: 30, cols: 4, rows: 4, previewTime: 7000 },
+  1: { pairCount: 3, label: '1단계', timeLimit: 10, cols: 2, rows: 3, previewTime: 2000, maxCardW: 140 },
+  2: { pairCount: 4, label: '2단계', timeLimit: 15, cols: 2, rows: 4, previewTime: 3000, maxCardW: 125 },
+  3: { pairCount: 6, label: '3단계', timeLimit: 25, cols: 3, rows: 4, previewTime: 5000 },
 };
 
 // ── Fisher-Yates 셔플 ──
@@ -25,18 +25,25 @@ function shuffle(arr) {
   return a;
 }
 
+// ── 게임 전체 쌍 순서 (startStage(1) 시 초기화) ──
+let gamePairs = [];
+
+function initGamePairs() {
+  gamePairs = shuffle(ALL_PAIRS);
+}
+
 // ── 스테이지용 카드 배열 생성 ──
+// 1단계: gamePairs[0..2], 2단계: gamePairs[3..6] → 합쳐서 7종 모두 등장
+// 3단계: 전체 다시 섞어 6쌍
 function buildStageCards(stage) {
-  const shuffledPairs = shuffle(ALL_PAIRS);
   let selectedPairs;
 
   if (stage === 1) {
-    selectedPairs = shuffledPairs.slice(0, 3);
+    selectedPairs = gamePairs.slice(0, 3);
   } else if (stage === 2) {
-    selectedPairs = shuffledPairs.slice(0, 6);
+    selectedPairs = gamePairs.slice(3, 7);
   } else {
-    // 7쌍 전체 + 랜덤 1쌍 반복
-    selectedPairs = [...shuffledPairs, shuffledPairs[0]];
+    selectedPairs = shuffle(ALL_PAIRS).slice(0, 6);
   }
 
   const cards = selectedPairs.flatMap((pair, i) => [
@@ -50,8 +57,8 @@ function buildStageCards(stage) {
 // ── 간단한 로직 검증 ──
 console.assert(shuffle([1, 2, 3]).length === 3, 'shuffle: length preserved');
 console.assert(buildStageCards(1).length === 6,  'stage 1: 6 cards');
-console.assert(buildStageCards(2).length === 12, 'stage 2: 12 cards');
-console.assert(buildStageCards(3).length === 16, 'stage 3: 16 cards');
+console.assert(buildStageCards(2).length === 8,  'stage 2: 8 cards');
+console.assert(buildStageCards(3).length === 12, 'stage 3: 12 cards');
 console.log('✅ card data tests passed');
 
 // ── 게임 상태 ──
@@ -244,18 +251,20 @@ function updateTimerBar() {
 
 // ── 그리드 레이아웃 계산 (4:5 비율 유지, 뷰포트 내 수용) ──
 function setGridLayout(stage) {
-  const { cols, rows } = STAGE_CONFIG[stage];
-  const gap     = 8;
-  const padding = 8;
-  const availH  = window.innerHeight - 76; // header(72) + timer(4)
-  const availW  = Math.min(window.innerWidth, 480) - padding * 2;
+  const { cols, rows, maxCardW } = STAGE_CONFIG[stage];
+  const gap      = 8;
+  const paddingH = 16; // 좌우 여백
+  const paddingV = 16; // 상하 여백
+  const availH  = window.innerHeight - 48; // header(44) + timer(4)
+  const availW  = Math.min(window.innerWidth, 480) - paddingH * 2;
 
   // 높이 기준 카드 폭 (4:5 비율)
-  const cardWFromH = ((availH - gap * (rows - 1) - padding * 2) / rows) * (4 / 5);
+  const cardWFromH = ((availH - gap * (rows - 1) - paddingV * 2) / rows) * (4 / 5);
   // 너비 기준 카드 폭
   const cardWFromW = (availW - gap * (cols - 1)) / cols;
 
-  const cardW = Math.min(cardWFromH, cardWFromW);
+  let cardW = Math.min(cardWFromH, cardWFromW);
+  if (maxCardW) cardW = Math.min(cardW, maxCardW);
   const cardH = cardW * (5 / 4);
 
   $grid.style.gridTemplateColumns = `repeat(${cols}, ${cardW}px)`;
@@ -264,6 +273,7 @@ function setGridLayout(stage) {
 
 // ── 스테이지 시작 ──
 function startStage(stage) {
+  if (stage === 1) initGamePairs(); // 새 게임마다 7쌍 순서 확정
   state.stage    = stage;
   state.cards    = buildStageCards(stage);
   state.flipped  = [];
@@ -348,69 +358,14 @@ function showGameOver() {
   $gameOver.classList.remove('hidden');
 }
 
-// ── 공유 이미지 생성 ──
-function generateShareImage() {
-  return new Promise((resolve) => {
-    const W = 1080, H = 1920;
-    const canvas = document.createElement('canvas');
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext('2d');
-
-    const bg = new Image();
-    bg.src = '바람식물도감_메인포스터_토비부채버전 카드 뒷면.png';
-    bg.onload = () => {
-      // 배경 이미지 (cover)
-      const scale = Math.max(W / bg.width, H / bg.height);
-      const bw = bg.width * scale, bh = bg.height * scale;
-      ctx.drawImage(bg, (W - bw) / 2, (H - bh) / 2, bw, bh);
-
-      // 어두운 오버레이
-      ctx.fillStyle = 'rgba(20, 19, 17, 0.55)';
-      ctx.fillRect(0, 0, W, H);
-
-      // 타이틀
-      ctx.fillStyle = '#f0ede6';
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 96px SUIT, sans-serif';
-      ctx.fillText('바람식물도감', W / 2, H * 0.42);
-
-      // 완료 문구
-      ctx.font = '600 56px SUIT, sans-serif';
-      ctx.fillStyle = '#96DDB8';
-      ctx.fillText('완성!', W / 2, H * 0.42 + 110);
-
-      // 부제
-      ctx.font = '400 40px SUIT, sans-serif';
-      ctx.fillStyle = 'rgba(240, 237, 230, 0.7)';
-      ctx.fillText('모든 부채를 찾았어요', W / 2, H * 0.42 + 200);
-
-      canvas.toBlob(resolve, 'image/png');
-    };
-    bg.onerror = () => {
-      // 배경 이미지 없을 때 폴백
-      ctx.fillStyle = '#1e1d1a';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#f0ede6';
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 96px SUIT, sans-serif';
-      ctx.fillText('바람식물도감', W / 2, H * 0.42);
-      ctx.font = '600 56px SUIT, sans-serif';
-      ctx.fillStyle = '#96DDB8';
-      ctx.fillText('완성!', W / 2, H * 0.42 + 110);
-      canvas.toBlob(resolve, 'image/png');
-    };
-  });
-}
-
 $shareBtn.onclick = async () => {
-  const blob = await generateShareImage();
+  const response = await fetch('share.png');
+  const blob = await response.blob();
   const file = new File([blob], 'baram-botany.png', { type: 'image/png' });
 
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: '바람식물도감 완성!' });
+    await navigator.share({ files: [file], title: '바람식물도감' });
   } else {
-    // 공유 미지원 브라우저 → 이미지 다운로드로 폴백
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
