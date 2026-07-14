@@ -1,0 +1,273 @@
+/* ── 변수 ── */
+:root {
+  --bg: #1e1d1a;
+  --header-bg: #1e1d1a;
+  --card-back-bg: #edeae1;
+  --card-back-text: #1e1d1a;
+  --text-primary: #f0ede6;
+  --text-secondary: #a09d98;
+  --text-muted: #6a6864;
+  --dot-active: #f0ede6;
+  --dot-done: #6a6864;
+  --dot-inactive: #3a3935;
+  --matched-border: rgba(120, 180, 100, 0.5);
+  --selected-border: #f0ede6;
+  --overlay-bg: rgba(20, 19, 17, 0.95);
+  --btn-bg: #96DDB8;
+  --btn-text: #1e1d1a;
+  --card-gap: 8px;
+  --header-height: 72px;
+}
+
+/* ── 리셋 ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'SUIT', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+  height: 100dvh;
+}
+
+/* ── 앱 컨테이너 ── */
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* ── 헤더 ── */
+#header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--header-bg);
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid #2d2c28;
+  height: var(--header-height);
+}
+#title {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  font-family: 'SUIT', sans-serif;
+}
+#stage-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+#stage-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+#stage-dots {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.dot {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--dot-inactive);
+  transition: background 0.3s;
+}
+.dot.active { background: var(--dot-active); }
+.dot.done   { background: var(--dot-done); }
+#pair-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 타이머 바 ── */
+#timer-wrap {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 9;
+  height: 4px;
+  background: #2d2c28;
+}
+#timer-bar {
+  height: 100%;
+  width: 100%;
+  background: #6abf6a;
+  transition: width 0.1s linear, background-color 0.4s;
+}
+#timer-bar.warning { background: #e8a020; }
+#timer-bar.danger  { background: #e04040; }
+#timer-bar.flash   { animation: flash-red 0.4s ease; }
+
+@keyframes flash-red {
+  0%   { background: #ff2020; }
+  50%  { background: #fff; }
+  100% { background: #ff2020; }
+}
+
+/* ── 미리보기 배너 ── */
+#preview-banner {
+  position: sticky;
+  top: calc(var(--header-height) + 4px);
+  z-index: 8;
+  background: rgba(240, 237, 230, 0.95);
+  color: #1e1d1a;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'SUIT', sans-serif;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(4px);
+}
+#preview-banner.hidden { display: none; }
+
+/* ── 카드 그리드 ── */
+#grid {
+  display: grid;
+  gap: var(--card-gap);
+  padding: var(--card-gap);
+  justify-content: center;
+  /* columns/rows/heights set dynamically by JS to maintain 4:5 card ratio */
+}
+#grid.preview .card-inner {
+  transition: none;
+}
+
+/* ── 카드 ── */
+.card {
+  perspective: 800px;
+  cursor: pointer;
+}
+.card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.7s ease;
+  border-radius: 10px;
+}
+.card.flipped .card-inner {
+  transform: rotateY(180deg);
+}
+
+/* 카드 앞뒷면 공통 */
+.card-front,
+.card-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+
+/* 뒷면 (face-down) — 포스터 이미지 */
+.card-back {
+  background: var(--card-back-bg);
+  background-image: url('바람식물도감_메인포스터_토비부채버전 카드 뒷면.png');
+  background-size: cover;
+  background-position: center;
+}
+
+/* 앞면 (face-up) — 실사/토비 카드 이미지 */
+.card-front {
+  transform: rotateY(180deg);
+  background: #111;
+}
+.card-front img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 선택 중 (하이라이트) */
+.card.selected .card-inner {
+  outline: 2px solid var(--selected-border);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* 매칭 완료 (페이드) */
+.card.matched {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.card.matched .card-inner {
+  outline: 1.5px solid var(--matched-border);
+  outline-offset: 1px;
+  border-radius: 10px;
+}
+
+/* ── 오버레이 공통 ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.overlay.hidden { display: none; }
+
+.overlay-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+#clear-title,
+#complete-title,
+#over-title {
+  font-size: 28px;
+  font-weight: 900;
+  font-family: 'SUIT', sans-serif;
+  line-height: 1.2;
+}
+#clear-sub,
+#complete-sub,
+#over-sub {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+#next-btn,
+#restart-btn,
+#retry-btn,
+#share-btn {
+  margin-top: 8px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  border-radius: 24px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'SUIT', sans-serif;
+  letter-spacing: 0.05em;
+  -webkit-tap-highlight-color: transparent;
+}
+#next-btn:active,
+#restart-btn:active,
+#retry-btn:active,
+#share-btn:active {
+  opacity: 0.8;
+}
+#restart-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid #3a3935;
+}

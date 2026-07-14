@@ -1,0 +1,428 @@
+// ── 카드 데이터 ──
+const ALL_PAIRS = [
+  { id: 'doraji',         name: '도라지꽃',    photo: '도라지꽃-실사 1.png',       illus: '도라지꽃-토비 1.png' },
+  { id: 'maendurami',     name: '맨드라미',    photo: '맨드라비-실사 1.png',       illus: '맨드라미-토비 1.png' },
+  { id: 'seokryu-yellow', name: '석류꽃(노랑)', photo: '석류꽃(노랑)-실사 1.png',  illus: '석류꽃(노랑)-토비 1.png' },
+  { id: 'seokryu-pink',   name: '석류꽃(분홍)', photo: '석류꽃(분홍)-실사 1.png',  illus: '석류꽃(분홍)-토비 1.png' },
+  { id: 'yeonil-lg',      name: '연잎(대)',    photo: '연잎(대)-실사.png',         illus: '연잎(대)-토비 1.png' },
+  { id: 'yeonil-md',      name: '연잎(중)',    photo: '연잎(중)-실사.png',         illus: '연잎(중)-토비 1.png' },
+  { id: 'yeonil-sm',      name: '연잎(소)',    photo: '연잎(소)-실사.png',         illus: '연잎(소)-토비 1.png' },
+];
+
+const STAGE_CONFIG = {
+  1: { pairCount: 3, label: '1단계', timeLimit: 10, cols: 2, rows: 3, previewTime: 2000 },
+  2: { pairCount: 6, label: '2단계', timeLimit: 15, cols: 3, rows: 4, previewTime: 5000 },
+  3: { pairCount: 8, label: '3단계', timeLimit: 30, cols: 4, rows: 4, previewTime: 7000 },
+};
+
+// ── Fisher-Yates 셔플 ──
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ── 스테이지용 카드 배열 생성 ──
+function buildStageCards(stage) {
+  const shuffledPairs = shuffle(ALL_PAIRS);
+  let selectedPairs;
+
+  if (stage === 1) {
+    selectedPairs = shuffledPairs.slice(0, 3);
+  } else if (stage === 2) {
+    selectedPairs = shuffledPairs.slice(0, 6);
+  } else {
+    // 7쌍 전체 + 랜덤 1쌍 반복
+    selectedPairs = [...shuffledPairs, shuffledPairs[0]];
+  }
+
+  const cards = selectedPairs.flatMap((pair, i) => [
+    { uid: `${pair.id}-photo-${i}`, pairId: pair.id, name: pair.name, image: pair.photo, isFlipped: false, isMatched: false },
+    { uid: `${pair.id}-illus-${i}`, pairId: pair.id, name: pair.name, image: pair.illus, isFlipped: false, isMatched: false },
+  ]);
+
+  return shuffle(cards);
+}
+
+// ── 간단한 로직 검증 ──
+console.assert(shuffle([1, 2, 3]).length === 3, 'shuffle: length preserved');
+console.assert(buildStageCards(1).length === 6,  'stage 1: 6 cards');
+console.assert(buildStageCards(2).length === 12, 'stage 2: 12 cards');
+console.assert(buildStageCards(3).length === 16, 'stage 3: 16 cards');
+console.log('✅ card data tests passed');
+
+// ── 게임 상태 ──
+const state = {
+  stage: 1,
+  cards: [],
+  flipped: [],     // 현재 뒤집힌 카드 uid (최대 2개)
+  matched: [],     // 매칭된 pairId 목록
+  isLocked: false, // 애니메이션 중 클릭 방지
+  timerId: null,   // setInterval ID
+  timeLeft: 0,     // 남은 초
+};
+
+// ── DOM 참조 ──
+const $grid          = document.getElementById('grid');
+const $stageLabel    = document.getElementById('stage-label');
+const $stageDots     = document.querySelectorAll('.dot');
+const $pairCount     = document.getElementById('pair-count');
+const $timerBar      = document.getElementById('timer-bar');
+const $stageClear    = document.getElementById('stage-clear');
+const $clearTitle    = document.getElementById('clear-title');
+const $clearSub      = document.getElementById('clear-sub');
+const $nextBtn       = document.getElementById('next-btn');
+const $gameComplete  = document.getElementById('game-complete');
+const $shareBtn      = document.getElementById('share-btn');
+const $restartBtn    = document.getElementById('restart-btn');
+const $gameOver      = document.getElementById('game-over');
+const $retryBtn      = document.getElementById('retry-btn');
+
+// ── 카드 DOM 생성 ──
+function createCardEl(card) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.dataset.uid = card.uid;
+
+  const inner = document.createElement('div');
+  inner.className = 'card-inner';
+
+  const back = document.createElement('div');
+  back.className = 'card-back';
+
+  const front = document.createElement('div');
+  front.className = 'card-front';
+  const img = document.createElement('img');
+  img.src = card.image;
+  img.alt = card.name;
+  img.loading = 'lazy';
+  front.appendChild(img);
+
+  inner.appendChild(back);
+  inner.appendChild(front);
+  el.appendChild(inner);
+
+  el.addEventListener('click', () => onCardClick(card.uid));
+  return el;
+}
+
+// ── 그리드 렌더링 ──
+function renderGrid(cards) {
+  $grid.innerHTML = '';
+  cards.forEach(card => $grid.appendChild(createCardEl(card)));
+}
+
+// ── 헤더 업데이트 ──
+function updateHeader() {
+  const config = STAGE_CONFIG[state.stage];
+  $stageLabel.textContent = config.label;
+  $pairCount.textContent  = `${state.matched.length} / ${config.pairCount}`;
+  $stageDots.forEach((dot, i) => {
+    dot.className = 'dot';
+    if (i + 1 < state.stage)      dot.classList.add('done');
+    else if (i + 1 === state.stage) dot.classList.add('active');
+  });
+}
+
+// ── 카드 엘리먼트 가져오기 ──
+function getCardEl(uid) {
+  return $grid.querySelector(`[data-uid="${uid}"]`);
+}
+
+// ── 카드 뒤집기 (시각적) ──
+function flipCard(uid, faceUp) {
+  const el = getCardEl(uid);
+  if (!el) return;
+  if (faceUp) el.classList.add('flipped');
+  else        el.classList.remove('flipped');
+}
+
+// ── 매칭 완료 표시 ──
+function markMatched(uid1, uid2) {
+  [uid1, uid2].forEach(uid => {
+    const el = getCardEl(uid);
+    if (el) {
+      el.classList.remove('selected');
+      el.classList.add('matched');
+    }
+  });
+}
+
+// ── 카드 클릭 핸들러 ──
+function onCardClick(uid) {
+  if (state.isLocked) return;
+
+  const card = state.cards.find(c => c.uid === uid);
+  if (!card || card.isFlipped || card.isMatched) return;
+  if (state.flipped.length >= 2) return;
+
+  card.isFlipped = true;
+  flipCard(uid, true);
+  getCardEl(uid).classList.add('selected');
+  state.flipped.push(uid);
+
+  if (state.flipped.length === 2) {
+    checkMatch();
+  }
+}
+
+// ── 매칭 판정 ──
+function checkMatch() {
+  const [uid1, uid2] = state.flipped;
+  const card1 = state.cards.find(c => c.uid === uid1);
+  const card2 = state.cards.find(c => c.uid === uid2);
+  const isMatch = card1.pairId === card2.pairId && uid1 !== uid2;
+
+  if (isMatch) {
+    card1.isMatched = true;
+    card2.isMatched = true;
+    markMatched(uid1, uid2);
+    state.matched.push(card1.pairId);
+    state.flipped = [];
+    updateHeader();
+
+    if (state.matched.length === STAGE_CONFIG[state.stage].pairCount) {
+      setTimeout(showStageClear, 500);
+    }
+  } else {
+    state.isLocked = true;
+    setTimeout(() => {
+      [uid1, uid2].forEach(uid => {
+        const el = getCardEl(uid);
+        if (el) {
+          el.classList.remove('selected');
+          el.classList.remove('flipped');
+        }
+        const c = state.cards.find(c => c.uid === uid);
+        if (c) c.isFlipped = false;
+      });
+      state.flipped = [];
+      state.isLocked = false;
+    }, 700);
+  }
+}
+
+// ── 타이머 시작 ──
+function startTimer() {
+  stopTimer();
+  const config = STAGE_CONFIG[state.stage];
+  state.timeLeft = config.timeLimit;
+  updateTimerBar();
+
+  state.timerId = setInterval(() => {
+    state.timeLeft -= 0.1;
+    updateTimerBar();
+
+    if (state.timeLeft <= 0) {
+      stopTimer();
+      $timerBar.classList.add('flash');
+      setTimeout(showGameOver, 400);
+    }
+  }, 100);
+}
+
+// ── 타이머 정지 ──
+function stopTimer() {
+  if (state.timerId) {
+    clearInterval(state.timerId);
+    state.timerId = null;
+  }
+}
+
+// ── 타이머 바 시각 업데이트 ──
+function updateTimerBar() {
+  const config = STAGE_CONFIG[state.stage];
+  const pct = Math.max(0, state.timeLeft / config.timeLimit) * 100;
+  $timerBar.style.width = pct + '%';
+  $timerBar.classList.remove('warning', 'danger');
+  if (pct <= 20)      $timerBar.classList.add('danger');
+  else if (pct <= 50) $timerBar.classList.add('warning');
+}
+
+// ── 그리드 레이아웃 계산 (4:5 비율 유지, 뷰포트 내 수용) ──
+function setGridLayout(stage) {
+  const { cols, rows } = STAGE_CONFIG[stage];
+  const gap     = 8;
+  const padding = 8;
+  const availH  = window.innerHeight - 76; // header(72) + timer(4)
+  const availW  = Math.min(window.innerWidth, 480) - padding * 2;
+
+  // 높이 기준 카드 폭 (4:5 비율)
+  const cardWFromH = ((availH - gap * (rows - 1) - padding * 2) / rows) * (4 / 5);
+  // 너비 기준 카드 폭
+  const cardWFromW = (availW - gap * (cols - 1)) / cols;
+
+  const cardW = Math.min(cardWFromH, cardWFromW);
+  const cardH = cardW * (5 / 4);
+
+  $grid.style.gridTemplateColumns = `repeat(${cols}, ${cardW}px)`;
+  $grid.style.gridTemplateRows    = `repeat(${rows}, ${cardH}px)`;
+}
+
+// ── 스테이지 시작 ──
+function startStage(stage) {
+  state.stage    = stage;
+  state.cards    = buildStageCards(stage);
+  state.flipped  = [];
+  state.matched  = [];
+  state.isLocked = true;
+
+  // 오버레이 숨기기
+  $stageClear.classList.add('hidden');
+  $gameComplete.classList.add('hidden');
+  $gameOver.classList.add('hidden');
+
+  // 타이머 바 리셋 (full, 초록)
+  stopTimer();
+  $timerBar.style.width = '100%';
+  $timerBar.className = '';
+
+  updateHeader();
+  setGridLayout(stage);
+  renderGrid(state.cards);
+
+  const { previewTime } = STAGE_CONFIG[stage];
+
+  // 미리보기: 전체 앞면 공개
+  // 미리보기: 즉시 앞면 공개
+  $grid.classList.add('preview');
+  state.cards.forEach(card => {
+    flipCard(card.uid, true);
+    card.isFlipped = true;
+  });
+
+  // 미리보기 타이머 바: previewTime 동안 줄어드는 카운트다운 표시
+  $timerBar.style.transition = 'none';
+  $timerBar.style.width = '100%';
+  $timerBar.className = '';
+  $timerBar.offsetWidth; // force reflow so transition applies cleanly
+  $timerBar.style.transition = `width ${previewTime}ms linear`;
+  $timerBar.style.width = '0%';
+
+  // 미리보기 종료 후 즉시 뒤집기 + 게임 타이머 시작
+  setTimeout(() => {
+    state.cards.forEach(card => {
+      flipCard(card.uid, false);
+      card.isFlipped = false;
+    });
+    requestAnimationFrame(() => {
+      $grid.classList.remove('preview');
+      $timerBar.style.transition = '';
+      state.isLocked = false;
+      startTimer();
+    });
+  }, previewTime);
+}
+
+// ── 스테이지 클리어 ──
+function showStageClear() {
+  stopTimer();
+  $timerBar.style.width = '100%';
+  $timerBar.className = '';
+
+  const config = STAGE_CONFIG[state.stage];
+  $clearTitle.textContent = `${config.label} 완료`;
+  $clearSub.textContent   = `${config.pairCount}쌍을 모두 찾았어요`;
+
+  if (state.stage < 3) {
+    $nextBtn.textContent = '다음 단계';
+    $nextBtn.onclick = () => startStage(state.stage + 1);
+    $stageClear.classList.remove('hidden');
+  } else {
+    showGameComplete();
+  }
+}
+
+// ── 게임 완료 ──
+function showGameComplete() {
+  $gameComplete.classList.remove('hidden');
+}
+
+// ── 게임 오버 ──
+function showGameOver() {
+  stopTimer();
+  state.isLocked = true;
+  $gameOver.classList.remove('hidden');
+}
+
+// ── 공유 이미지 생성 ──
+function generateShareImage() {
+  return new Promise((resolve) => {
+    const W = 1080, H = 1920;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    const bg = new Image();
+    bg.src = '바람식물도감_메인포스터_토비부채버전 카드 뒷면.png';
+    bg.onload = () => {
+      // 배경 이미지 (cover)
+      const scale = Math.max(W / bg.width, H / bg.height);
+      const bw = bg.width * scale, bh = bg.height * scale;
+      ctx.drawImage(bg, (W - bw) / 2, (H - bh) / 2, bw, bh);
+
+      // 어두운 오버레이
+      ctx.fillStyle = 'rgba(20, 19, 17, 0.55)';
+      ctx.fillRect(0, 0, W, H);
+
+      // 타이틀
+      ctx.fillStyle = '#f0ede6';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 96px SUIT, sans-serif';
+      ctx.fillText('바람식물도감', W / 2, H * 0.42);
+
+      // 완료 문구
+      ctx.font = '600 56px SUIT, sans-serif';
+      ctx.fillStyle = '#96DDB8';
+      ctx.fillText('완성!', W / 2, H * 0.42 + 110);
+
+      // 부제
+      ctx.font = '400 40px SUIT, sans-serif';
+      ctx.fillStyle = 'rgba(240, 237, 230, 0.7)';
+      ctx.fillText('모든 부채를 찾았어요', W / 2, H * 0.42 + 200);
+
+      canvas.toBlob(resolve, 'image/png');
+    };
+    bg.onerror = () => {
+      // 배경 이미지 없을 때 폴백
+      ctx.fillStyle = '#1e1d1a';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#f0ede6';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 96px SUIT, sans-serif';
+      ctx.fillText('바람식물도감', W / 2, H * 0.42);
+      ctx.font = '600 56px SUIT, sans-serif';
+      ctx.fillStyle = '#96DDB8';
+      ctx.fillText('완성!', W / 2, H * 0.42 + 110);
+      canvas.toBlob(resolve, 'image/png');
+    };
+  });
+}
+
+$shareBtn.onclick = async () => {
+  const blob = await generateShareImage();
+  const file = new File([blob], 'baram-botany.png', { type: 'image/png' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({ files: [file], title: '바람식물도감 완성!' });
+  } else {
+    // 공유 미지원 브라우저 → 이미지 다운로드로 폴백
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'baram-botany.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+};
+
+// ── 버튼 이벤트 ──
+$restartBtn.onclick = () => startStage(1);
+$retryBtn.onclick   = () => startStage(1);
+
+// ── 게임 시작 ──
+startStage(1);

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>바람식물도감</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/suit@v1.0.0/packages/font/static/css/suit.css">
+  <link rel="stylesheet" href="game.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- 헤더 -->
+    <header id="header">
+      <div id="title">바람식물도감</div>
+      <div id="stage-info">
+        <span id="stage-label">1단계</span>
+        <div id="stage-dots">
+          <span class="dot active" data-stage="1"></span>
+          <span class="dot" data-stage="2"></span>
+          <span class="dot" data-stage="3"></span>
+        </div>
+        <span id="pair-count">0 / 3</span>
+      </div>
+    </header>
+
+    <!-- 타이머 바 -->
+    <div id="timer-wrap">
+      <div id="timer-bar"></div>
+    </div>
+
+<!-- 카드 그리드 -->
+    <main id="grid"></main>
+
+    <!-- 스테이지 클리어 오버레이 -->
+    <div id="stage-clear" class="overlay hidden">
+      <div class="overlay-content">
+        <div id="clear-title">1단계 완료</div>
+        <div id="clear-sub">3쌍을 모두 찾았어요</div>
+        <button id="next-btn">2단계로 →</button>
+      </div>
+    </div>
+
+    <!-- 게임 완료 오버레이 -->
+    <div id="game-complete" class="overlay hidden">
+      <div class="overlay-content">
+        <div id="complete-title">바람식물도감<br>완성!</div>
+        <div id="complete-sub">모든 부채를 찾았어요</div>
+        <button id="share-btn">스토리 공유</button>
+        <button id="restart-btn">처음부터</button>
+      </div>
+    </div>
+
+    <!-- 게임 오버 오버레이 -->
+    <div id="game-over" class="overlay hidden">
+      <div class="overlay-content">
+        <div id="over-title">시간 초과</div>
+        <div id="over-sub">다시 도전해보세요</div>
+        <button id="retry-btn">처음부터</button>
+      </div>
+    </div>
+
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
