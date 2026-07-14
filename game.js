@@ -54,6 +54,27 @@ function buildStageCards(stage) {
   return shuffle(cards);
 }
 
+// ── 전체 이미지 사전 캐싱 (페이지 로드 시) ──
+function preloadAllGameImages() {
+  ALL_PAIRS.forEach(pair => {
+    new Image().src = pair.photo;
+    new Image().src = pair.illus;
+  });
+}
+preloadAllGameImages();
+
+// ── 스테이지 카드 이미지 로딩 완료 대기 ──
+function waitForImages(cards) {
+  const loads = cards.map(card => new Promise(resolve => {
+    const img = new Image();
+    img.onload = resolve;
+    img.onerror = resolve;
+    img.src = card.image;
+  }));
+  const timeout = new Promise(resolve => setTimeout(resolve, 5000));
+  return Promise.race([Promise.all(loads), timeout]);
+}
+
 // ── 간단한 로직 검증 ──
 console.assert(shuffle([1, 2, 3]).length === 3, 'shuffle: length preserved');
 console.assert(buildStageCards(1).length === 6,  'stage 1: 6 cards');
@@ -272,7 +293,7 @@ function setGridLayout(stage) {
 }
 
 // ── 스테이지 시작 ──
-function startStage(stage) {
+async function startStage(stage) {
   if (stage === 1) initGamePairs(); // 새 게임마다 7쌍 순서 확정
   state.stage    = stage;
   state.cards    = buildStageCards(stage);
@@ -285,8 +306,9 @@ function startStage(stage) {
   $gameComplete.classList.add('hidden');
   $gameOver.classList.add('hidden');
 
-  // 타이머 바 리셋 (full, 초록)
+  // 타이머 바 리셋
   stopTimer();
+  $timerBar.style.transition = 'none';
   $timerBar.style.width = '100%';
   $timerBar.className = '';
 
@@ -294,25 +316,26 @@ function startStage(stage) {
   setGridLayout(stage);
   renderGrid(state.cards);
 
+  // 이미지 로딩 완료 후 미리보기 시작
+  await waitForImages(state.cards);
+
   const { previewTime } = STAGE_CONFIG[stage];
 
-  // 미리보기: 전체 앞면 공개
-  // 미리보기: 즉시 앞면 공개
   $grid.classList.add('preview');
   state.cards.forEach(card => {
     flipCard(card.uid, true);
     card.isFlipped = true;
   });
 
-  // 미리보기 타이머 바: previewTime 동안 줄어드는 카운트다운 표시
+  // 미리보기 타이머 바 카운트다운
   $timerBar.style.transition = 'none';
   $timerBar.style.width = '100%';
   $timerBar.className = '';
-  $timerBar.offsetWidth; // force reflow so transition applies cleanly
+  $timerBar.offsetWidth; // force reflow
   $timerBar.style.transition = `width ${previewTime}ms linear`;
   $timerBar.style.width = '0%';
 
-  // 미리보기 종료 후 즉시 뒤집기 + 게임 타이머 시작
+  // 미리보기 종료 후 뒤집기 + 게임 타이머 시작
   setTimeout(() => {
     state.cards.forEach(card => {
       flipCard(card.uid, false);
