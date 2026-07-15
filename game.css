@@ -290,8 +290,28 @@ body {
 #share-btn:active {
   opacity: 0.8;
 }
-#restart-btn {
+#insta-btn {
+  display: block;
   background: transparent;
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 24px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'SUIT', sans-serif;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#insta-btn:active { opacity: 0.8; }
+
+#restart-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 12px;
+  margin-top: -4px;
 }
