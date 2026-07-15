@@ -226,7 +226,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(20, 19, 17, 0.55);
+  background: rgba(20, 19, 17, 0.68);
   z-index: 0;
 }
 #game-complete .overlay-content {
@@ -284,6 +284,9 @@ body {
   letter-spacing: 0.05em;
   -webkit-tap-highlight-color: transparent;
 }
+#share-btn {
+  width: 100%;
+}
 #next-btn:active,
 #restart-btn:active,
 #retry-btn:active,
@@ -292,6 +295,7 @@ body {
 }
 #insta-btn {
   display: block;
+  width: 100%;
   background: transparent;
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.4);
@@ -302,13 +306,14 @@ body {
   font-family: 'SUIT', sans-serif;
   letter-spacing: 0.05em;
   text-decoration: none;
+  text-align: center;
   -webkit-tap-highlight-color: transparent;
 }
 #insta-btn:active { opacity: 0.8; }
 
 #restart-btn {
   background: transparent;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.7);
   border: none;
   font-size: 13px;
   font-weight: 500;
